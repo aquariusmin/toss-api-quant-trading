@@ -60,7 +60,7 @@ tqt backtest run --sleeve kr-global-etf --all
 | `toss_client_id`, `toss_client_secret` | 토스증권 WTS → 설정 → Open API |
 | `toss_bank_account` | 종합매매 계좌번호 (숫자만) |
 | `TELEGRAM_BOT_TOKEN` | 텔레그램 `@BotFather` 에서 봇 생성 |
-| `TELEGRAM_CHAT_ID` | 봇에 아무 말이나 보낸 뒤 `https://api.telegram.org/bot<TOKEN>/getUpdates` |
+| `TELEGRAM_CHAT_ID` | **숫자 ID입니다.** 봇에게 아무 말이나 보낸 뒤 `tqt telegram-id --write` |
 | `DISCORD_WEBHOOK_URL` | 서버 설정 → 연동 → 웹후크 |
 | `TQT_DASHBOARD_TOKEN` | `openssl rand -hex 24` 로 생성 |
 
@@ -221,8 +221,13 @@ tqt dashboard              # 대시보드만
 
 # 제어
 tqt halt "이유"  /  tqt resume
+tqt telegram-id --write    # 텔레그램 숫자 chat id 찾아서 .env에 저장
 tqt notify-test
 ```
+
+> 흔한 실수: `TELEGRAM_CHAT_ID` 에 봇의 `@username` 을 넣는 것. 텔레그램은 **숫자 ID**를
+> 요구하며, 잘못 넣으면 모든 알림이 "chat not found" 로 실패하고 `/halt` 같은 원격
+> 명령도 조용히 동작하지 않습니다. 봇에 먼저 말을 걸고 `tqt telegram-id --write` 를 쓰세요.
 
 ### 텔레그램 명령어
 

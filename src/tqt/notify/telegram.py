@@ -42,6 +42,20 @@ class TelegramNotifier(Notifier):
         self.http = httpx.Client(base_url=f"{API}/bot{token}", timeout=timeout)
         self._offset: int | None = None
 
+        # A very easy mistake is pasting the *bot's* @username here instead of
+        # the numeric chat id. Telegram then answers "chat not found" on every
+        # send, and — worse — the command allowlist can never match, so /halt
+        # silently stops working. Only a public channel legitimately uses a
+        # name, and those start with '@'.
+        stripped = self.chat_id.lstrip("-")
+        if not stripped.isdigit() and not self.chat_id.startswith("@"):
+            log.warning(
+                "TELEGRAM_CHAT_ID=%r is neither numeric nor an @channel. It is "
+                "probably the bot's username. Message the bot once, then run "
+                "`tqt telegram-id --write` to fix it.",
+                self.chat_id,
+            )
+
     def close(self) -> None:
         self.http.close()
 

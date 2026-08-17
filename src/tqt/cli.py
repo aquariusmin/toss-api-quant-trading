@@ -503,6 +503,79 @@ def resume() -> None:
     console.print("[green]resumed.[/]")
 
 
+@app.command("telegram-id")
+def telegram_id(
+    write: bool = typer.Option(False, "--write", help="save the id into .env"),
+) -> None:
+    """Find your numeric Telegram chat id (message the bot first).
+
+    Telegram needs a numeric chat id, not the bot's @username — a very common
+    mix-up that makes every send fail and silently disables /halt.
+    """
+    _setup_logging("ERROR")
+    import re
+
+    import httpx
+
+    from .config import REPO_ROOT
+
+    settings = get_settings()
+    if not settings.telegram_bot_token:
+        console.print("[red]TELEGRAM_BOT_TOKEN is not set.[/]")
+        raise typer.Exit(1)
+
+    http = httpx.Client(
+        base_url=f"https://api.telegram.org/bot{settings.telegram_bot_token}", timeout=15
+    )
+    me = http.get("/getMe").json()
+    if not me.get("ok"):
+        console.print(f"[red]bad bot token:[/] {me.get('description')}")
+        raise typer.Exit(1)
+    console.print(f"bot: [bold]@{me['result'].get('username')}[/]")
+
+    updates = http.get("/getUpdates", params={"limit": 50}).json()
+    chats: dict[int, str] = {}
+    for u in updates.get("result", []):
+        msg = u.get("message") or u.get("edited_message") or u.get("my_chat_member") or {}
+        chat = msg.get("chat") or {}
+        if chat.get("id") is not None:
+            chats[chat["id"]] = (
+                chat.get("username") or chat.get("title") or chat.get("first_name") or "?"
+            )
+
+    if not chats:
+        console.print(
+            "[yellow]No chats yet.[/] Open Telegram, find "
+            f"[bold]@{me['result'].get('username')}[/], press Start or send any "
+            "message, then run this again."
+        )
+        raise typer.Exit(1)
+
+    for cid, name in chats.items():
+        console.print(f"  chat_id = [bold]{cid}[/]  ({name})")
+
+    chosen = next(iter(chats))
+    if not write:
+        console.print(f"\nAdd to .env:  TELEGRAM_CHAT_ID={chosen}")
+        console.print("Or re-run with --write to do it automatically.")
+        return
+
+    env = REPO_ROOT / ".env"
+    raw = env.read_text(encoding="utf-8")
+    line = f"TELEGRAM_CHAT_ID={chosen}"
+    if re.search(r"(?m)^TELEGRAM_CHAT_ID=.*$", raw):
+        raw = re.sub(r"(?m)^TELEGRAM_CHAT_ID=.*$", line, raw)
+    else:
+        raw = raw.rstrip("\n") + f"\n{line}\n"
+    env.write_text(raw, encoding="utf-8")
+    console.print(f"[green]wrote {line} to .env[/]")
+
+    http.post(
+        "/sendMessage",
+        json={"chat_id": chosen, "text": "✅ tqt: 채팅 ID가 설정되었습니다. /help 를 보내보세요."},
+    )
+
+
 @app.command("notify-test")
 def notify_test() -> None:
     """Send a test message to every configured channel."""

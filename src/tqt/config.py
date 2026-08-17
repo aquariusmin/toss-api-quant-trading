@@ -112,6 +112,41 @@ class Settings(BaseSettings):
     )
 
     # ----------------------------------------------------------------------
+    @field_validator("toss_account_seq", mode="before")
+    @classmethod
+    def _blank_to_none(cls, v: object) -> object:
+        """Treat ``TOSS_ACCOUNT_SEQ=`` as "not set".
+
+        A key present with an empty value is the normal way people leave an
+        optional setting alone — .env.example literally ships it that way — so it
+        must mean None rather than crash on int parsing.
+        """
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
+    @field_validator(
+        "max_position_weight",
+        "max_daily_loss_pct",
+        "max_orders_per_day",
+        "max_gross_exposure",
+        "paper_starting_cash_krw",
+        "dashboard_port",
+        "toss_timeout_seconds",
+        mode="before",
+    )
+    @classmethod
+    def _blank_to_default(cls, v: object, info) -> object:
+        """An emptied-out numeric setting falls back to its default.
+
+        Same reasoning as above: blanking a line in .env should mean "use the
+        default", not "refuse to start". These are risk limits, so silently
+        substituting the (conservative) default is safer than failing to boot.
+        """
+        if isinstance(v, str) and not v.strip():
+            return cls.model_fields[info.field_name].default
+        return v
+
     @field_validator("db_path")
     @classmethod
     def _absolutize(cls, v: Path) -> Path:
