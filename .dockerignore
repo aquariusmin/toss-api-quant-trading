@@ -1,0 +1,63 @@
+# Keep the build context small and free of secrets.
+#
+# Everything here is *excluded from the context sent to the Docker daemon*. The
+# Dockerfile only COPYs pyproject.toml, uv.lock, README.md, src/ and config/, so
+# nothing below would land in the image anyway — but a context containing .env
+# and a 13MB SQLite database is both slow and needlessly risky.
+#
+# Note these patterns are NOT anchored by default in the same way as .gitignore,
+# so leading slashes are used where a root-only match is meant.
+
+# --- secrets ---------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- local state (also mounted as a volume at runtime) ---------------------
+/data/
+/reports/
+/logs/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+
+# --- virtualenvs: the image builds its own at /app/.venv -------------------
+/.venv/
+/venv/
+/env/
+
+# --- python build artefacts ------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+/build/
+/dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- not needed at runtime -------------------------------------------------
+.git/
+.gitignore
+.github/
+tests/
+docs/
+deploy/
+docker-compose.yml
+Dockerfile
+CLAUDE.md
+
+# --- editors / OS ----------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

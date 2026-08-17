@@ -11,16 +11,21 @@ token_cache.json
 
 # ---------------------------------------------------------------------------
 # Data / state (local, regenerable, and contains account balances)
+#
+# These MUST stay anchored with a leading slash. An unanchored `data/` matches a
+# directory of that name at ANY depth, which silently excluded the source package
+# `src/tqt/data/` (store.py, ingest.py) and pushed a repo that could not import.
+# Anchor anything here that names a generic directory.
 # ---------------------------------------------------------------------------
-data/
+/data/
+/reports/
+/logs/
 *.db
 *.db-wal
 *.db-shm
 *.sqlite
 *.sqlite3
 *.parquet
-reports/
-logs/
 *.log
 
 # ---------------------------------------------------------------------------
@@ -30,11 +35,11 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .eggs/
-build/
-dist/
-.venv/
-venv/
-env/
+/build/
+/dist/
+/.venv/
+/venv/
+/env/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
