@@ -40,18 +40,28 @@
 
 ## 1. 빠른 시작
 
+패키지 관리는 [uv](https://docs.astral.sh/uv/)를 씁니다.
+
 ```bash
+# uv 설치 (없다면)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
 git clone https://github.com/aquariusmin/toss-api-quant-trading
 cd toss-api-quant-trading
 
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
+uv sync                   # uv.lock 그대로 .venv 구성 (가상환경 활성화 불필요)
 
 cp .env.example .env      # 값 채우기 (아래 참고)
-tqt doctor                # 설정 점검 — 여기서 전부 OK가 나와야 합니다
-tqt data sync             # 시세 16년치 내려받기 (약 1분)
-tqt backtest run --sleeve kr-global-etf --all
+uv run tqt doctor         # 설정 점검 — 여기서 전부 OK가 나와야 합니다
+uv run tqt data sync      # 시세 16년치 내려받기 (약 1분)
+uv run tqt backtest run --sleeve kr-global-etf --all
 ```
+
+> 모든 명령은 `uv run` 을 앞에 붙입니다 (`uv run tqt ...`, `uv run pytest`).
+> 가상환경을 activate 하지 않아도 프로젝트 환경이 그대로 쓰입니다.
+> 의존성 추가는 `uv add <pkg>`, 테스트용은 `uv add --group test <pkg>` —
+> `pyproject.toml` 을 손으로 고치면 `uv.lock` 이 어긋납니다. 자세한 규칙은
+> [CLAUDE.md](CLAUDE.md) 참고.
 
 ### `.env` 채우기
 
@@ -60,14 +70,14 @@ tqt backtest run --sleeve kr-global-etf --all
 | `toss_client_id`, `toss_client_secret` | 토스증권 WTS → 설정 → Open API |
 | `toss_bank_account` | 종합매매 계좌번호 (숫자만) |
 | `TELEGRAM_BOT_TOKEN` | 텔레그램 `@BotFather` 에서 봇 생성 |
-| `TELEGRAM_CHAT_ID` | **숫자 ID입니다.** 봇에게 아무 말이나 보낸 뒤 `tqt telegram-id --write` |
+| `TELEGRAM_CHAT_ID` | **숫자 ID입니다.** 봇에게 아무 말이나 보낸 뒤 `uv run tqt telegram-id --write` |
 | `DISCORD_WEBHOOK_URL` | 서버 설정 → 연동 → 웹후크 |
 | `TQT_DASHBOARD_TOKEN` | `openssl rand -hex 24` 로 생성 |
 
 > **허용 IP 등록이 필수입니다.** 토스는 등록되지 않은 IP에서의 호출을 403으로 막습니다.
 > 설정 → Open API → 허용 IP 관리에 **봇이 돌아가는 서버의 공인 IP**를 넣으세요.
 > 가정용 인터넷은 IP가 바뀌므로, 봇이 30분마다 확인해서 바뀌면 텔레그램으로 알려줍니다
-> (`tqt doctor` 에서도 확인 가능).
+> (`uv run tqt doctor` 에서도 확인 가능).
 
 ---
 
@@ -76,11 +86,11 @@ tqt backtest run --sleeve kr-global-etf --all
 ### 1단계 — 백테스트 (지금 바로)
 
 ```bash
-tqt data sync                                              # 시세 수집
-tqt backtest run --sleeve kr-global-etf --all               # 전략 비교
-tqt backtest walkforward --sleeve kr-global-etf --strategy faber   # ★ 아웃오브샘플
-tqt backtest sweep --param sma_days --values 100,150,200,250,300  # 파라미터 민감도
-tqt backtest plan                                          # 포트폴리오 전체
+uv run tqt data sync                                              # 시세 수집
+uv run tqt backtest run --sleeve kr-global-etf --all               # 전략 비교
+uv run tqt backtest walkforward --sleeve kr-global-etf --strategy faber   # ★ 아웃오브샘플
+uv run tqt backtest sweep --param sma_days --values 100,150,200,250,300  # 파라미터 민감도
+uv run tqt backtest plan                                          # 포트폴리오 전체
 ```
 
 **다음 단계로 넘어가는 조건**: walk-forward 아웃오브샘플에서 최대낙폭이 내가 견딜 수
@@ -91,9 +101,9 @@ tqt backtest plan                                          # 포트폴리오 전
 `.env` 에 `TQT_MODE=paper` (기본값).
 
 ```bash
-tqt paper reset --cash 1000000     # 가상 100만원으로 시작
-tqt cycle --force                  # 지금 즉시 한 번 돌려보기
-tqt run --dashboard                # 스케줄러 + 대시보드 상시 실행
+uv run tqt paper reset --cash 1000000     # 가상 100만원으로 시작
+uv run tqt cycle --force                  # 지금 즉시 한 번 돌려보기
+uv run tqt run --dashboard                # 스케줄러 + 대시보드 상시 실행
 ```
 
 페이퍼는 **실제 토스 호가창에 체결**시킵니다. 매수는 실제 최우선 매도호가를,
@@ -112,9 +122,9 @@ TQT_LIVE_CONFIRM=I_UNDERSTAND_REAL_MONEY
 ```
 
 ```bash
-tqt doctor          # 반드시 전부 OK
-tqt status          # 계좌 확인
-tqt run --dashboard
+uv run tqt doctor          # 반드시 전부 OK
+uv run tqt status          # 계좌 확인
+uv run tqt run --dashboard
 ```
 
 → 넘어가기 전에 [실거래 체크리스트](#실거래-체크리스트)를 확인하세요.
@@ -181,7 +191,7 @@ decay가 모두 1.0 이상 → **과최적화 흔적이 없습니다.** 당연�
 
 | 장치 | 기본값 | 설명 |
 |---|---|---|
-| 킬 스위치 | — | 텔레그램 `/halt`, 대시보드 버튼, `tqt halt`. **SQLite에 저장되어 재부팅에도 유지됩니다.** |
+| 킬 스위치 | — | 텔레그램 `/halt`, 대시보드 버튼, `uv run tqt halt`. **SQLite에 저장되어 재부팅에도 유지됩니다.** |
 | 일일 손실 한도 | -3% | 넘으면 당일 자동 정지 (다음날 자동 해제) |
 | 종목당 비중 | 20% | 국고채·현금성 자산은 예외(60%) |
 | 총 주식 비중 | 100% | **미수·레버리지 절대 사용 안 함** |
@@ -198,36 +208,36 @@ decay가 모두 1.0 이상 → **과최적화 흔적이 없습니다.** 당연�
 
 ```bash
 # 진단 · 계좌
-tqt doctor                 # 실행 전 점검 (제일 먼저 쓸 명령)
-tqt accounts               # 계좌 목록, accountSeq 확인
-tqt costs                  # 내 계좌 실제 수수료율
-tqt status                 # 평가금액·보유·손익 요약
+uv run tqt doctor                 # 실행 전 점검 (제일 먼저 쓸 명령)
+uv run tqt accounts               # 계좌 목록, accountSeq 확인
+uv run tqt costs                  # 내 계좌 실제 수수료율
+uv run tqt status                 # 평가금액·보유·손익 요약
 
 # 데이터
-tqt data sync              # 시세 수집/갱신
-tqt data status            # 보유 데이터 현황
+uv run tqt data sync              # 시세 수집/갱신
+uv run tqt data status            # 보유 데이터 현황
 
 # 백테스트
-tqt backtest run --sleeve kr-global-etf --all
-tqt backtest walkforward --strategy faber
-tqt backtest sweep --param sma_days --values 100,150,200,250,300
-tqt backtest plan
+uv run tqt backtest run --sleeve kr-global-etf --all
+uv run tqt backtest walkforward --strategy faber
+uv run tqt backtest sweep --param sma_days --values 100,150,200,250,300
+uv run tqt backtest plan
 
 # 페이퍼 · 실행
-tqt paper reset --cash 1000000
-tqt cycle --force          # 한 번만 실행 (테스트용)
-tqt run --dashboard        # 상시 실행
-tqt dashboard              # 대시보드만
+uv run tqt paper reset --cash 1000000
+uv run tqt cycle --force          # 한 번만 실행 (테스트용)
+uv run tqt run --dashboard        # 상시 실행
+uv run tqt dashboard              # 대시보드만
 
 # 제어
-tqt halt "이유"  /  tqt resume
-tqt telegram-id --write    # 텔레그램 숫자 chat id 찾아서 .env에 저장
-tqt notify-test
+uv run tqt halt "이유"   /   uv run tqt resume
+uv run tqt telegram-id --write    # 텔레그램 숫자 chat id 찾아서 .env에 저장
+uv run tqt notify-test
 ```
 
 > 흔한 실수: `TELEGRAM_CHAT_ID` 에 봇의 `@username` 을 넣는 것. 텔레그램은 **숫자 ID**를
 > 요구하며, 잘못 넣으면 모든 알림이 "chat not found" 로 실패하고 `/halt` 같은 원격
-> 명령도 조용히 동작하지 않습니다. 봇에 먼저 말을 걸고 `tqt telegram-id --write` 를 쓰세요.
+> 명령도 조용히 동작하지 않습니다. 봇에 먼저 말을 걸고 `uv run tqt telegram-id --write` 를 쓰세요.
 
 ### 텔레그램 명령어
 
@@ -327,8 +337,8 @@ src/tqt/
   (테스트로 검증: `tests/test_engine.py`).
 
 ```bash
-pytest          # 101개 테스트
-ruff check src/
+uv run pytest              # 113개 테스트
+uv run ruff check src/ tests/
 ```
 
 ---
@@ -345,7 +355,7 @@ ruff check src/
   13612W 모멘텀과 breadth 방어. 유니버스 크기에 따라 B값을 조정해야 합니다.
 - **Ernest Chan**, *Quantitative Trading* — 백테스트 함정(룩어헤드·생존편향·데이터스누핑).
 - **David Bailey & Marcos López de Prado**, *The Deflated Sharpe Ratio* (2014) —
-  파라미터를 여러 개 시험했을 때의 Sharpe 보정. `tqt backtest sweep` 의 `DeflSharpe`.
+  파라미터를 여러 개 시험했을 때의 Sharpe 보정. `uv run tqt backtest sweep` 의 `DeflSharpe`.
 - **Andreas Clenow**, *Stocks on the Move* (2015) — 변동성 기반 포지션 사이징.
 - **Robert Carver**, *Systematic Trading* — 리스크 목표 기반 설계, 과최적화 회피.
 
@@ -355,7 +365,7 @@ ruff check src/
 
 실거래 전에 전부 확인하세요.
 
-- [ ] `tqt doctor` 전 항목 OK (특히 허용 IP, 알림 채널)
+- [ ] `uv run tqt doctor` 전 항목 OK (특히 허용 IP, 알림 채널)
 - [ ] 페이퍼 트레이딩 **1개월 이상** 무중단 + 리밸런싱 1회 이상 정상 수행
 - [ ] walk-forward OOS 최대낙폭을 실제로 감당할 수 있는지 확인
       (100만원이면 -15% = -15만원. 1,000만원이면 -150만원.)

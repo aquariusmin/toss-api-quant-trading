@@ -10,11 +10,12 @@ User=tqt
 Group=tqt
 WorkingDirectory=/opt/tqt/app
 Environment=TZ=Asia/Seoul
+Environment=UV_PROJECT_ENVIRONMENT=/opt/tqt/app/.venv
 EnvironmentFile=/opt/tqt/app/.env
-ExecStart=/opt/tqt/venv/bin/tqt data sync
+ExecStart=/usr/local/bin/uv run --no-sync tqt data sync
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/tqt/app/data
+ReadWritePaths=/opt/tqt/app
 SyslogIdentifier=tqt-sync

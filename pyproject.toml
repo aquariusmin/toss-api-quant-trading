@@ -25,9 +25,6 @@ dependencies = [
     "rich>=13.7",
 ]
 
-[project.optional-dependencies]
-dev = ["pytest>=8.2", "pytest-asyncio>=0.23", "ruff>=0.5", "respx>=0.21"]
-
 [project.scripts]
 tqt = "tqt.cli:app"
 
@@ -51,3 +48,19 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 # UP042: `str, Enum` is deliberate over `StrEnum` — it keeps explicit `.value`
 #        access and serialises identically under pydantic on 3.11+.
 ignore = ["B008", "UP042"]
+
+[dependency-groups]
+test = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "respx>=0.23.1",
+    "ruff>=0.16.3",
+]
+
+[tool.uv]
+# uv only installs the `dev` group by default, so a bare `uv sync` would
+# *uninstall* pytest/ruff and leave `uv run pytest` broken right after the
+# sync that CLAUDE.md tells you to run. Making `test` a default group keeps a
+# freshly synced checkout immediately testable.
+# The Docker image builds with `--no-default-groups` to stay lean.
+default-groups = ["test"]

@@ -2,12 +2,13 @@
 # (32-bit 라즈베리파이 OS처럼 pandas 휠이 없는 환경에서는 이 방법이 낫습니다)
 #
 # 설치:
+#   # uv 설치 (없다면)
+#   curl -LsSf https://astral.sh/uv/install.sh | sudo env UV_INSTALL_DIR=/usr/local/bin sh
 #   sudo useradd -r -s /usr/sbin/nologin tqt || true
 #   sudo mkdir -p /opt/tqt && sudo chown tqt:tqt /opt/tqt
 #   sudo -u tqt git clone https://github.com/aquariusmin/toss-api-quant-trading /opt/tqt/app
 #   cd /opt/tqt/app
-#   sudo -u tqt python3 -m venv /opt/tqt/venv
-#   sudo -u tqt /opt/tqt/venv/bin/pip install -e .
+#   sudo -u tqt uv sync --locked          # .venv 생성 (uv.lock 그대로 설치)
 #   sudo -u tqt cp .env.example .env && sudo -u tqt vi .env
 #   sudo cp deploy/tqt.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now tqt
@@ -29,8 +30,15 @@ Group=tqt
 WorkingDirectory=/opt/tqt/app
 Environment=TZ=Asia/Seoul
 Environment=PYTHONUNBUFFERED=1
+Environment=UV_PROJECT_ENVIRONMENT=/opt/tqt/app/.venv
 EnvironmentFile=/opt/tqt/app/.env
-ExecStart=/opt/tqt/venv/bin/tqt run --dashboard
+
+# 시작 전 lockfile 기준으로 동기화. 앞의 '-' 는 네트워크가 없을 때도 기존
+# .venv 로 그냥 뜨게 합니다 — 부팅 시 인터넷이 늦게 올라오는 라즈베리파이에서
+# 봇이 아예 안 뜨는 것보다 낫습니다.
+ExecStartPre=-/usr/local/bin/uv sync --locked
+# --no-sync: 위에서 이미 동기화했으므로 실행 시점에 다시 네트워크를 타지 않습니다.
+ExecStart=/usr/local/bin/uv run --no-sync tqt run --dashboard
 
 # 재시작 정책: 죽으면 30초 뒤 다시 띄웁니다. 봇이 조용히 멈춘 채 방치되는 것이
 # 가장 위험한 상태이므로 항상 되살립니다.
@@ -49,8 +57,9 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-# DB와 로그를 쓸 수 있어야 합니다.
-ReadWritePaths=/opt/tqt/app/data
+# DB, 로그, 그리고 uv 가 관리하는 .venv 를 쓸 수 있어야 합니다.
+# (ProtectSystem=strict 아래에서는 여기 없는 경로가 전부 읽기 전용입니다)
+ReadWritePaths=/opt/tqt/app
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
