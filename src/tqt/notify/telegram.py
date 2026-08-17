@@ -87,8 +87,15 @@ class TelegramNotifier(Notifier):
         return resp.status_code == 200
 
     # ------------------------------------------------------------------
-    def poll_once(self, handlers: dict[str, CommandHandler], *, timeout: int = 25) -> int:
-        """Long-poll for commands. Returns how many were handled."""
+    def poll_once(self, handlers: dict[str, CommandHandler], *, timeout: int = 25) -> int | None:
+        """Long-poll for commands.
+
+        Returns the number of commands handled, or ``None`` if the poll itself
+        failed — the caller must back off on ``None``. A failing request returns
+        *immediately* (a 401 does not wait out the long-poll timeout), so treating
+        failure as "0 handled" would spin the loop at full speed against
+        Telegram's API.
+        """
         params = {"timeout": timeout}
         if self._offset is not None:
             params["offset"] = self._offset
@@ -96,9 +103,10 @@ class TelegramNotifier(Notifier):
             resp = self.http.get("/getUpdates", params=params, timeout=timeout + 10)
         except httpx.HTTPError as exc:
             log.debug("telegram poll error: %s", exc)
-            return 0
+            return None
         if resp.status_code != 200:
-            return 0
+            log.debug("telegram getUpdates %s: %s", resp.status_code, resp.text[:200])
+            return None
 
         handled = 0
         for update in resp.json().get("result", []):
@@ -138,14 +146,39 @@ class TelegramNotifier(Notifier):
     def run_command_loop(
         self, handlers: dict[str, CommandHandler], stop_event: threading.Event
     ) -> None:
-        """Poll until ``stop_event`` is set. Intended for a daemon thread."""
+        """Poll until ``stop_event`` is set. Intended for a daemon thread.
+
+        Backs off exponentially while polling keeps failing. Without this, a
+        revoked bot token (BotFather's /revoke invalidates it instantly) turns
+        this into a hot loop hammering the Telegram API — which matters on a
+        Raspberry Pi, and is exactly the state the bot lands in when a token is
+        rotated out from under a running process.
+        """
         log.info("telegram command loop started (%d commands)", len(handlers))
+        failures = 0
         while not stop_event.is_set():
             try:
-                self.poll_once(handlers)
+                result = self.poll_once(handlers)
             except Exception as exc:  # never let the loop die
                 log.warning("telegram loop error: %s", exc)
-                stop_event.wait(5)
+                result = None
+
+            if result is None:
+                failures += 1
+                delay = min(2 ** min(failures, 6), 60)
+                if failures in (1, 5, 20) or failures % 50 == 0:
+                    log.warning(
+                        "telegram polling has failed %d time(s); retrying in %ds. "
+                        "If this persists, the bot token is probably invalid — "
+                        "check BotFather and run `tqt notify-test`.",
+                        failures,
+                        delay,
+                    )
+                stop_event.wait(delay)
+            else:
+                if failures:
+                    log.info("telegram polling recovered after %d failure(s)", failures)
+                failures = 0
         log.info("telegram command loop stopped")
 
     def start_command_thread(

@@ -56,12 +56,31 @@ def prices() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 @pytest.fixture
-def settings(tmp_path):
+def settings(tmp_path, monkeypatch):
+    """Hermetic settings.
+
+    ``_env_file=None`` stops pydantic-settings reading the developer's real
+    ``.env``. Without it the suite silently inherits live credentials and
+    notification config — which makes results machine-dependent and leaks real
+    values into test output.
+    """
     from tqt.config import Settings
 
+    for var in (
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_CHAT_ID",
+        "DISCORD_WEBHOOK_URL",
+        "TQT_DASHBOARD_TOKEN",
+        "TQT_MODE",
+        "TOSS_ACCOUNT_SEQ",
+    ):
+        monkeypatch.delenv(var, raising=False)
+
     return Settings(
+        _env_file=None,
         toss_client_id="test-id",
         toss_client_secret="test-secret",
+        toss_bank_account="1234567890",
         db_path=tmp_path / "risk.db",
         max_position_weight=Decimal("0.20"),
         max_daily_loss_pct=Decimal("0.03"),

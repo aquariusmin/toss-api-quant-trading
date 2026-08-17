@@ -26,7 +26,9 @@ BASE = "https://openapi.tossinvest.com"
 
 @pytest.fixture
 def settings(tmp_path):
+    # _env_file=None keeps the real .env out of the test run.
     return Settings(
+        _env_file=None,
         toss_client_id="cid",
         toss_client_secret="csec",
         toss_account_seq=1,
