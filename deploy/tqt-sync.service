@@ -1,0 +1,20 @@
+# 시세 데이터 일일 갱신 (tqt-sync.timer 가 호출합니다).
+[Unit]
+Description=tqt — daily market data sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=tqt
+Group=tqt
+WorkingDirectory=/opt/tqt/app
+Environment=TZ=Asia/Seoul
+EnvironmentFile=/opt/tqt/app/.env
+ExecStart=/opt/tqt/venv/bin/tqt data sync
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/tqt/app/data
+SyslogIdentifier=tqt-sync

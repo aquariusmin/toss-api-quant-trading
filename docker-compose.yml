@@ -1,0 +1,59 @@
+# 라즈베리파이/홈서버 배포용.
+#
+#   cp .env.example .env && vi .env       # 값 채우기
+#   docker compose up -d                  # 시작 (기본 paper 모드)
+#   docker compose logs -f                # 로그 보기
+#   docker compose exec bot tqt doctor     # 점검
+#   docker compose exec bot tqt status     # 현황
+#
+# 중요: 토스 허용 IP는 "이 서버의 공인 IP"입니다. 가정용 인터넷은 IP가 바뀌므로
+# 봇이 30분마다 IP를 확인해 변경되면 텔레그램으로 알려줍니다.
+
+services:
+  bot:
+    build: .
+    image: tqt:latest
+    container_name: tqt-bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: Asia/Seoul
+      TQT_DB_PATH: /app/data/tqt.db
+      TQT_DASHBOARD_HOST: 0.0.0.0
+      TQT_DASHBOARD_PORT: "8000"
+    ports:
+      # 대시보드. 외부에 직접 노출하지 말고 집 안 네트워크나
+      # Tailscale/WireGuard 같은 VPN 안에서만 접근하세요.
+      - "8000:8000"
+    volumes:
+      # SQLite DB(거래 원장 + 시세)를 컨테이너 재생성에도 보존합니다.
+      - ./data:/app/data
+      # 배분 계획은 컨테이너를 다시 빌드하지 않고 고칠 수 있게 마운트합니다.
+      - ./config:/app/config:ro
+    command: ["run", "--dashboard"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # 라즈베리파이에서 메모리 폭주로 OOM 나는 것을 막습니다.
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  # 시세 데이터 일일 갱신. 국내장 마감(15:30 KST) 이후에 돌립니다.
+  # `docker compose run --rm sync` 로 수동 실행할 수도 있습니다.
+  sync:
+    build: .
+    image: tqt:latest
+    container_name: tqt-sync
+    profiles: ["manual"]
+    env_file: .env
+    environment:
+      TZ: Asia/Seoul
+      TQT_DB_PATH: /app/data/tqt.db
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config:ro
+    command: ["data", "sync"]

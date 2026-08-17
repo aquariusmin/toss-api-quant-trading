@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tqt"
+version = "0.1.0"
+description = "Toss Securities Open API quant trading bot: backtest -> paper -> live, with dashboard and chat control"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+dependencies = [
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "fastapi>=0.111",
+    "uvicorn>=0.30",
+    "jinja2>=3.1",
+    # Required by FastAPI to read the dashboard's halt/resume <form> posts.
+    "python-multipart>=0.0.9",
+    "apscheduler>=3.10",
+    "typer>=0.12",
+    "rich>=13.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2", "pytest-asyncio>=0.23", "ruff>=0.5", "respx>=0.21"]
+
+[project.scripts]
+tqt = "tqt.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+tqt = ["web/templates/*.html", "web/static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# B008: FastAPI/Typer rely on callables in argument defaults.
+# UP042: `str, Enum` is deliberate over `StrEnum` — it keeps explicit `.value`
+#        access and serialises identically under pydantic on 3.11+.
+ignore = ["B008", "UP042"]

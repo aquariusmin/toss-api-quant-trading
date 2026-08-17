@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>tqt · {{ data.mode }} 대시보드</title>
+<style>
+  /* Palette roles. Light values on bare :root; dark redefined under both the
+     OS media query and an explicit data-theme stamp so a toggle wins either way. */
+  :root {
+    color-scheme: light;
+    --plane:          #f9f9f7;
+    --surface-1:      #fcfcfb;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --muted:          #898781;
+    --grid:           #e1e0d9;
+    --axis:           #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6;
+    --series-2:       #eb6834;
+    --good:           #006300;
+    --critical:       #d03b3b;
+    --warning:        #fab219;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --plane:          #0d0d0d;
+      --surface-1:      #1a1a19;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted:          #898781;
+      --grid:           #2c2c2a;
+      --axis:           #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --series-2:       #d95926;
+      --good:           #0ca30c;
+      --critical:       #d03b3b;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --plane:#0d0d0d; --surface-1:#1a1a19; --text-primary:#fff;
+    --text-secondary:#c3c2b7; --muted:#898781; --grid:#2c2c2a; --axis:#383835;
+    --border:rgba(255,255,255,0.10); --series-1:#3987e5; --series-2:#d95926;
+    --good:#0ca30c; --critical:#d03b3b;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px 16px 64px;
+    background: var(--plane); color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", "Apple SD Gothic Neo", sans-serif;
+    font-size: 15px; line-height: 1.5;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  header { display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; margin-bottom:18px; }
+  h1 { font-size: 19px; margin: 0; letter-spacing: -0.01em; }
+  .chip {
+    font-size: 12px; padding: 3px 9px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--text-secondary);
+  }
+  .chip.live { color: #fff; background: var(--critical); border-color: transparent; }
+  .chip.halted { color:#000; background: var(--warning); border-color: transparent; }
+  .chip.open { color: var(--good); border-color: var(--good); }
+
+  .panel {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px; margin-bottom: 16px;
+  }
+  .panel > h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
+    color: var(--text-secondary); margin: 0 0 12px; font-weight: 600;
+  }
+
+  /* Stat tiles: hero numbers, no chart. */
+  .tiles { display:grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .tile { padding: 2px 0; }
+  .tile .label { font-size:12px; color:var(--muted); margin-bottom:2px; }
+  .tile .value { font-size:26px; font-weight:600; letter-spacing:-0.02em; }
+  .tile .sub { font-size:12px; color:var(--text-secondary); }
+  .up   { color: var(--good); }
+  .down { color: var(--critical); }
+
+  figure.chart { margin: 0; position: relative; }
+  svg.viz { width: 100%; height: auto; display: block; overflow: visible; }
+  .grid { stroke: var(--grid); stroke-width: 1; }
+  .axis { stroke: var(--axis); stroke-width: 1; }
+  .tick, .cat, .legend-t, .bar-label {
+    fill: var(--muted); font-size: 11px;
+    font-family: system-ui, sans-serif; font-variant-numeric: tabular-nums;
+  }
+  .cat { fill: var(--text-secondary); }
+  .bar-label { fill: var(--text-secondary); }
+  .direct-label { fill: var(--text-primary); font-size: 12px; font-weight: 600; }
+  .crosshair .cx { stroke: var(--axis); stroke-width: 1; stroke-dasharray: 3 3; }
+  figcaption { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+  .tooltip {
+    position: absolute; pointer-events: none; z-index: 5;
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 9px; font-size: 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.14); white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: right; padding: 7px 8px; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border);
+  }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:last-child { border-bottom: none; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .sym { font-weight: 600; }
+  .dim { color: var(--muted); font-size: 12px; }
+  .empty { color: var(--muted); font-size: 13px; margin: 4px 0; }
+
+  form.inline { display: inline; }
+  button {
+    font: inherit; font-size: 13px; padding: 7px 14px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface-1);
+    color: var(--text-primary); cursor: pointer;
+  }
+  button.danger { background: var(--critical); color: #fff; border-color: transparent; }
+  button.go { background: var(--good); color: #fff; border-color: transparent; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  pre.plan {
+    margin: 0; font-size: 12px; color: var(--text-secondary);
+    white-space: pre-wrap; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .lvl-ERROR { color: var(--critical); }
+  .lvl-WARN  { color: var(--warning); }
+  @media (max-width: 560px) {
+    .tile .value { font-size: 22px; }
+    body { padding: 14px 10px 48px; }
+  }
+</style>
+</head>
+<body data-palette="#2a78d6,#eb6834">
+<div class="wrap">
+
+  <header>
+    <h1>tqt 트레이딩 대시보드</h1>
+    <span class="chip {% if data.mode == 'live' %}live{% endif %}">
+      {% if data.mode == 'live' %}⚠ 실거래{% else %}{{ data.mode }}{% endif %}
+    </span>
+    {% if data.clock.KR and data.clock.KR.open %}<span class="chip open">KR 장중</span>
+    {% else %}<span class="chip">KR 휴장</span>{% endif %}
+    {% if data.clock.US and data.clock.US.open %}<span class="chip open">US 장중</span>
+    {% else %}<span class="chip">US 휴장</span>{% endif %}
+    {% if data.risk.halted %}<span class="chip halted">거래 중단</span>{% endif %}
+  </header>
+
+  {% if data.risk.halted %}
+  <div class="panel" style="border-color: var(--warning)">
+    <h2>거래 중단 상태</h2>
+    <p style="margin:0 0 12px">{{ data.risk.halt_reason or '사유 미기록' }}</p>
+    <form class="inline" method="post" action="/resume">
+      <button class="go" type="submit">거래 재개</button>
+    </form>
+  </div>
+  {% endif %}
+
+  <section class="panel">
+    <h2>계좌 현황</h2>
+    <div class="tiles">
+      <div class="tile">
+        <div class="label">평가금액</div>
+        <div class="value">₩{{ '{:,.0f}'.format(data.equity) }}</div>
+        <div class="sub {{ 'up' if data.total_return >= 0 else 'down' }}">
+          {{ '{:+.2f}'.format(data.total_return) }}% 누적
+        </div>
+      </div>
+      <div class="tile">
+        <div class="label">당일 손익</div>
+        {% if data.daily_pnl is not none %}
+        <div class="value {{ 'up' if data.daily_pnl >= 0 else 'down' }}">
+          {{ '{:+.2f}'.format(data.daily_pnl * 100) }}%
+        </div>
+        <div class="sub">한도 -{{ '{:.1f}'.format(data.risk.max_daily_loss_pct * 100) }}%</div>
+        {% else %}
+        <div class="value dim">—</div>
+        <div class="sub">기준 기록 대기</div>
+        {% endif %}
+      </div>
+      <div class="tile">
+        <div class="label">현금</div>
+        <div class="value">₩{{ '{:,.0f}'.format(data.cash) }}</div>
+        <div class="sub">주식 ₩{{ '{:,.0f}'.format(data.positions_value) }}</div>
+      </div>
+      <div class="tile">
+        <div class="label">주식 비중</div>
+        <div class="value">{{ '{:.1f}'.format(data.gross_exposure * 100) }}%</div>
+        <div class="sub">USD/KRW {{ '{:,.1f}'.format(data.usd_krw) }}</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>평가금액 추이</h2>
+    {{ equity_svg | safe }}
+  </section>
+
+  <section class="panel">
+    <h2>목표 대비 실제 비중</h2>
+    {{ weights_svg | safe }}
+  </section>
+
+  <section class="panel">
+    <h2>보유 종목</h2>
+    {% if data.positions %}
+    <div class="scroll">
+    <table>
+      <thead><tr>
+        <th>종목</th><th>수량</th><th>평균단가</th><th>현재가</th><th>손익</th><th>비중</th>
+      </tr></thead>
+      <tbody>
+      {% for p in data.positions %}
+        <tr>
+          <td><span class="sym">{{ p.symbol }}</span>
+              <span class="dim">{{ p.name }}</span></td>
+          <td class="num">{{ '{:,.4f}'.format(p.quantity).rstrip('0').rstrip('.') }}</td>
+          <td class="num">{{ '{:,.2f}'.format(p.avg_price) }}</td>
+          <td class="num">{{ '{:,.2f}'.format(p.last_price) }}</td>
+          <td class="num {{ 'up' if p.pnl_pct >= 0 else 'down' }}">
+            {{ '{:+.2f}'.format(p.pnl_pct) }}%</td>
+          <td class="num">{{ '{:.1f}'.format(p.weight) }}%</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="empty">보유 종목이 없습니다 (전액 현금).</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>최근 주문</h2>
+    {% if data.orders %}
+    <div class="scroll">
+    <table>
+      <thead><tr><th>시각</th><th>구분</th><th>종목</th><th>수량</th><th>가격</th>
+        <th>상태</th></tr></thead>
+      <tbody>
+      {% for o in data.orders %}
+        <tr>
+          <td class="dim">{{ o.submitted_at[:16].replace('T',' ') }}</td>
+          <td>{{ o.side }}</td>
+          <td class="sym">{{ o.symbol }}</td>
+          <td class="num">{{ o.quantity }}</td>
+          <td class="num">{{ o.price or '시장가' }}</td>
+          <td>{{ o.status }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="empty">주문 기록이 없습니다.</p>
+    {% endif %}
+  </section>
+
+  <section class="panel">
+    <h2>포트폴리오 배분</h2>
+    <pre class="plan">{{ data.plan }}</pre>
+  </section>
+
+  <section class="panel">
+    <h2>이벤트 로그</h2>
+    {% if data.events %}
+    <div class="scroll">
+    <table>
+      <thead><tr><th>시각</th><th>구분</th><th>내용</th></tr></thead>
+      <tbody>
+      {% for e in data.events %}
+        <tr>
+          <td class="dim">{{ e.ts[:16].replace('T',' ') }}</td>
+          <td class="lvl-{{ e.level }}">{{ e.kind }}</td>
+          <td style="text-align:left">{{ e.message }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <p class="empty">이벤트가 없습니다.</p>
+    {% endif %}
+  </section>
+
+  {% if not data.risk.halted %}
+  <section class="panel">
+    <h2>긴급 정지</h2>
+    <div class="row">
+      <form class="inline" method="post" action="/halt"
+            onsubmit="return confirm('모든 자동매매를 중단합니다. 계속할까요?')">
+        <input type="hidden" name="reason" value="대시보드 수동 정지">
+        <button class="danger" type="submit">거래 중단</button>
+      </form>
+      <span class="dim">
+        오늘 주문 {{ data.risk.orders_today }}/{{ data.risk.order_budget }}회
+        · 캔들 {{ '{:,}'.format(data.n_bars) }}개
+      </span>
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+
+<script>
+// Crosshair + tooltip for the equity line. The chart ships its own data on the
+// SVG element, so there is no fetch and nothing to load.
+document.querySelectorAll('svg.viz[data-points]').forEach(svg => {
+  let pts, plot;
+  try {
+    pts  = JSON.parse(svg.dataset.points);
+    plot = JSON.parse(svg.dataset.plot);
+  } catch (e) { return; }
+  if (!pts || pts.length === 0) return;
+
+  const fig  = svg.closest('figure');
+  const tip  = fig.querySelector('.tooltip');
+  const hair = svg.querySelector('.crosshair');
+  const line = hair.querySelector('.cx');
+  const dot  = hair.querySelector('.cdot');
+  const vb   = svg.viewBox.baseVal;
+
+  const fmt = n => '₩' + Math.round(n).toLocaleString('ko-KR');
+
+  function move(ev) {
+    const r = svg.getBoundingClientRect();
+    const cx = ev.touches ? ev.touches[0].clientX : ev.clientX;
+    // Map the pointer from screen space into viewBox space.
+    const vx = (cx - r.left) / r.width * vb.width;
+    if (vx < plot.l - 6 || vx > plot.r + 6) { leave(); return; }
+
+    let best = pts[0], bd = Infinity;
+    for (const p of pts) {
+      const dd = Math.abs(p.x - vx);
+      if (dd < bd) { bd = dd; best = p; }
+    }
+    hair.style.display = '';
+    line.setAttribute('x1', best.x); line.setAttribute('x2', best.x);
+    dot.setAttribute('cx', best.x);  dot.setAttribute('cy', best.y);
+
+    tip.hidden = false;
+    tip.innerHTML = '<strong>' + fmt(best.v) + '</strong><br>' + best.t;
+    const px = best.x / vb.width * r.width;
+    const py = best.y / vb.height * r.height;
+    tip.style.left = Math.min(Math.max(px + 12, 4), r.width - tip.offsetWidth - 4) + 'px';
+    tip.style.top  = Math.max(py - tip.offsetHeight - 10, 2) + 'px';
+  }
+  function leave() { hair.style.display = 'none'; tip.hidden = true; }
+
+  svg.addEventListener('mousemove', move);
+  svg.addEventListener('mouseleave', leave);
+  svg.addEventListener('touchmove', move, {passive: true});
+  svg.addEventListener('touchend', leave);
+});
+</script>
+</body>
+</html>

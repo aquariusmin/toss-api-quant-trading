@@ -1,0 +1,68 @@
+# systemd unit — Docker를 쓰지 않고 라즈베리파이에 직접 설치할 때 사용합니다.
+# (32-bit 라즈베리파이 OS처럼 pandas 휠이 없는 환경에서는 이 방법이 낫습니다)
+#
+# 설치:
+#   sudo useradd -r -s /usr/sbin/nologin tqt || true
+#   sudo mkdir -p /opt/tqt && sudo chown tqt:tqt /opt/tqt
+#   sudo -u tqt git clone https://github.com/aquariusmin/toss-api-quant-trading /opt/tqt/app
+#   cd /opt/tqt/app
+#   sudo -u tqt python3 -m venv /opt/tqt/venv
+#   sudo -u tqt /opt/tqt/venv/bin/pip install -e .
+#   sudo -u tqt cp .env.example .env && sudo -u tqt vi .env
+#   sudo cp deploy/tqt.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now tqt
+#
+# 확인:  journalctl -u tqt -f
+# 정지:  sudo systemctl stop tqt     (또는 텔레그램에서 /halt)
+
+[Unit]
+Description=tqt — Toss Securities quant trading bot
+Documentation=https://github.com/aquariusmin/toss-api-quant-trading
+# 시세·주문 모두 네트워크가 필요하므로 온라인 상태를 기다립니다.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tqt
+Group=tqt
+WorkingDirectory=/opt/tqt/app
+Environment=TZ=Asia/Seoul
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/opt/tqt/app/.env
+ExecStart=/opt/tqt/venv/bin/tqt run --dashboard
+
+# 재시작 정책: 죽으면 30초 뒤 다시 띄웁니다. 봇이 조용히 멈춘 채 방치되는 것이
+# 가장 위험한 상태이므로 항상 되살립니다.
+Restart=always
+RestartSec=30
+# 5분 안에 5번 넘게 죽으면 포기하고 멈춥니다(무한 재시작 루프 방지).
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+# 종료 시 스케줄러가 정리할 시간을 줍니다.
+KillSignal=SIGINT
+TimeoutStopSec=30
+
+# --- 하드닝 -----------------------------------------------------------------
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# DB와 로그를 쓸 수 있어야 합니다.
+ReadWritePaths=/opt/tqt/app/data
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryMax=1G
+
+# --- 로깅 -------------------------------------------------------------------
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tqt
+
+[Install]
+WantedBy=multi-user.target

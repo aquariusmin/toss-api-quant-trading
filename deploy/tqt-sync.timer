@@ -1,0 +1,19 @@
+# 매일 국내장 마감(15:30 KST) 이후에 시세를 갱신합니다.
+#
+#   sudo cp deploy/tqt-sync.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now tqt-sync.timer
+#   systemctl list-timers tqt-sync.timer
+
+[Unit]
+Description=Run tqt data sync daily after the KRX close
+
+[Timer]
+# 16:30 KST — 마감 정리 및 정정 시세가 반영될 시간을 둡니다.
+OnCalendar=Mon..Sat 16:30 Asia/Seoul
+# 서버가 꺼져 있어 놓친 실행은 부팅 후 따라잡습니다.
+Persistent=true
+# 여러 타이머가 동시에 몰리는 것을 피합니다.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
